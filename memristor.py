@@ -1,23 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# A helpful description of the Memristor model based on the provided paper.
-#
 # The model is based on the following two equations:
 # 1. i(t) = f1(v(t), s(t))
 # 2. ds(t)/dt = f2(v(t), s(t))
-#
-# For the specific hys_example model, the functions are:
+
 # f1(v, s) = (v/R) * (tanh(s) + 1)
 # f2(v, s) = (1/tau) * (v - s**3 + s)
-#
-# This implementation simulates the device's behavior over time by numerically integrating
-# the differential equation for the state variable 's'.
+
 
 class Memristor:
-    """
-    A class to represent a well-posed memristor model based on the hys_example from the paper.
-    """
 
     def __init__(self, R=1.0, tau=1.0, initial_s=0.0):
         """
@@ -63,20 +55,20 @@ class Memristor:
         Returns:
             float: The current through the device at this time step.
         """
-        # Store the current voltage for history
+
         self.v_history.append(v)
         self.s_history.append(self.s)
         
-        # Calculate the rate of change of the state variable
+
         ds_dt = self.f2(v, self.s)
         
-        # Numerically integrate to find the new state value using a simple Euler method
+
         self.s += ds_dt * dt
         
-        # Calculate the current based on the new state
+
         current = self.f1(v, self.s)
         
-        # Store the current for history
+
         self.i_history.append(current)
         
         return current
@@ -108,13 +100,13 @@ class NeuralNetwork:
         self.layers = []
         self.G_targets = []
 
-        # Create a memristor for each weight
+
         for weight in weight_lists:
             M, N = weight.shape
             layer_mems = [[Memristor(R=R, tau=tau, initial_s=0.0) for _ in range(N)] for _ in range(M)]
             self.layers.append(layer_mems)
 
-            # Store G_targets corresponding to the weights
+
             layer_G_targets = np.zeros_like(weight)
             for i in range(M):
                 for j in range(N):
@@ -124,11 +116,11 @@ class NeuralNetwork:
             self.G_targets.append(layer_G_targets)
 
     def w_to_G_mapper(self, w):
-        """Map weight w → conductance G in (0, 2)."""
+
         return 2.0 / (1.0 + np.exp(-w))
 
     def program_weights(self, dt=0.001, max_steps=50000):
-        """Program all memristors to store the target G from weights."""
+
         for l, layer in enumerate(self.layers):
             M, N = len(layer), len(layer[0])
             for i in range(M):
@@ -138,7 +130,7 @@ class NeuralNetwork:
                     program_to_conductance_ffpi(mem, G_target, dt=dt, max_steps=max_steps)
 
     def readout_weights(self):
-        """Read the stored weights back from the programmed memristors."""
+
         weights = []
         for layer in self.layers:
             M, N = len(layer), len(layer[0])
@@ -155,7 +147,7 @@ class NeuralNetwork:
 
 
 def s_from_G(G, R):
-    """Convert conductance G to state s. Raises ValueError if target out of range."""
+
     arg = R * G - 1.0
     if arg <= -1.0 or arg >= 1.0:
         raise ValueError(f"G out of achievable range for R={R}. arg={arg}")
@@ -170,21 +162,16 @@ def program_to_conductance_ffpi(mem, G_target,
                                 v_min=-5.0,
                                 v_max=5.0,
                                 hold_after=0.05):
-    """
-    Feedforward + PI on state (s) programmer.
-    - Converts G_target -> s_target and computes feedforward v_ff = s^3 - s.
-    - Then runs a PI loop on s to correct residual error.
-    - hold_after: after reaching tolerance, continue holding for this many seconds (to ensure settle).
-    """
+
     R = mem.R
 
-    # 1) Validate/compute target s*
+
     try:
         s_target = s_from_G(G_target, R)
     except ValueError as e:
         raise
 
-    # feedforward equilibrium voltage
+
     v_ff = s_target**3 - s_target
 
     # PI state
@@ -198,9 +185,7 @@ def program_to_conductance_ffpi(mem, G_target,
         G = mem.get_conductance()
         err_G = G_target - G
 
-        # check tolerance
         if abs(err_G) < tol_G:
-            # hold for a short duration to ensure stability
             if last_time_in_tol is None:
                 last_time_in_tol = step
             elif (step - last_time_in_tol) >= hold_steps:
@@ -208,22 +193,17 @@ def program_to_conductance_ffpi(mem, G_target,
         else:
             last_time_in_tol = None
 
-        # compute s from measured G (avoid numerical issues when G at bounds)
-        # clamp inside (-1+eps, 1-eps) to avoid atanh overflow due to noise
         eps = 1e-12
         arg = np.clip(R*G - 1.0, -1.0 + 1e-9, 1.0 - 1e-9)
         s_meas = np.arctanh(arg)
 
-        # PI on state error
         err_s = s_target - s_meas
         integ += err_s * dt
 
-        # anti-windup: clamp integral to reasonable bounds
         integ = np.clip(integ, -10.0, 10.0)
 
         v_cmd = v_ff + Kp * err_s + Ki * integ
 
-        # saturate command
         v_cmd = float(np.clip(v_cmd, v_min, v_max))
 
         mem.simulate_step(v_cmd, dt)
@@ -254,9 +234,9 @@ def test_programming():
 
 def test_mapping():
     nn = NeuralNetwork([np.array([[0.0, 1.0], [-1.0, 2.0]])])
-    W_orig = nn.G_targets[0]  # mapped conductances from weights
+    W_orig = nn.G_targets[0]
 
-    for w, G in zip(nn.layers[0][0], W_orig[0]):  # just check first row
+    for w, G in zip(nn.layers[0][0], W_orig[0]):
         s = s_from_G(G, nn.R)
         G_back = (np.tanh(s) + 1)/nn.R
         assert np.isclose(G, G_back, atol=1e-8)
@@ -278,8 +258,6 @@ def test_nn_cycle():
     print(W_read[0])
     print(W_read[1])
 
-    # They won't be exact (because memristor dynamics ≠ exact math),
-    # but they should be close.
     assert np.allclose(w1, W_read[0], atol=0.2)
     assert np.allclose(w2, W_read[1], atol=0.2)
     print("✅ Full NN cycle test passed.")
