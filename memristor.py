@@ -139,7 +139,7 @@ class NeuralNetwork:
                 for j in range(N):
                     mem = layer[i][j]
                     G = mem.get_conductance()
-                    # invert mapper: G → w
+                    
                     w = np.log((2.0 / G) - 1.0) * -1.0
                     W[i, j] = w
             weights.append(W)
