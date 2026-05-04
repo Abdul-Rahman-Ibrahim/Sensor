@@ -70,7 +70,7 @@ class Sensor:
                 (self.last_x, self.last_y, event.x, event.y, size))
             self.last_x, self.last_y = event.x, event.y
 
-            # 🔑 Predict continuously while drawing
+         
             self.predict_letter()
 
     def stop_draw(self, event):
